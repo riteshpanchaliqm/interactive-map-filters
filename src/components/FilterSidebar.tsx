@@ -8,20 +8,6 @@ import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { voterDataLoader, FilterCategory, AnalysisResult } from '../utils/dataLoader';
 
-// States data for area selection
-const statesData = [
-  'Alaska (AK)', 'Alabama (AL)', 'Arkansas (AR)', 'Arizona (AZ)', 'California (CA)',
-  'Colorado (CO)', 'Connecticut (CT)', 'Delaware (DE)', 'Florida (FL)', 'Georgia (GA)',
-  'Hawaii (HI)', 'Iowa (IA)', 'Idaho (ID)', 'Illinois (IL)', 'Indiana (IN)',
-  'Kansas (KS)', 'Kentucky (KY)', 'Louisiana (LA)', 'Massachusetts (MA)', 'Maryland (MD)',
-  'Maine (ME)', 'Michigan (MI)', 'Minnesota (MN)', 'Missouri (MO)', 'Mississippi (MS)',
-  'Montana (MT)', 'North Carolina (NC)', 'North Dakota (ND)', 'Nebraska (NE)',
-  'New Hampshire (NH)', 'New Jersey (NJ)', 'New Mexico (NM)', 'Nevada (NV)', 'New York (NY)',
-  'Ohio (OH)', 'Oklahoma (OK)', 'Oregon (OR)', 'Pennsylvania (PA)', 'Rhode Island (RI)',
-  'South Carolina (SC)', 'South Dakota (SD)', 'Tennessee (TN)', 'Texas (TX)', 'Utah (UT)',
-  'Vermont (VT)', 'Virginia (VA)', 'Washington (WA)', 'West Virginia (WV)', 'Wisconsin (WI)',
-  'Wyoming (WY)', 'District of Columbia (DC)'
-];
 
 interface FilterSidebarProps {
   selectedFilters: Set<string>;
@@ -41,52 +27,10 @@ export function FilterSidebar({ selectedFilters, onFilterChange, onReset, onAppl
     const loadData = async () => {
         try {
           await voterDataLoader.loadData();
-          const categories = voterDataLoader.getEnhancedFilterCategories();
+          const categories = await voterDataLoader.getEnhancedFilterCategories();
         
-        // Add area selection category
-        const areaSelectionCategory: FilterCategory = {
-          id: 'area-selection',
-          title: 'Area Selection',
-          icon: '🗺️',
-          sections: [
-            {
-              title: 'States',
-              items: statesData.map(state => ({
-                id: `state-${state.split('(')[1].replace(')', '')}`,
-                label: state,
-                category: 'Geographic Areas'
-              })),
-              searchable: true
-            },
-            {
-              title: 'Federal and State Districts',
-              items: [
-                { id: 'congressional-districts', label: 'Congressional Districts', category: 'Political Districts' },
-                { id: 'state-legislative-districts', label: 'State Legislative Districts', category: 'Political Districts' },
-                { id: 'state-senate-districts', label: 'State Senate Districts', category: 'Political Districts' }
-              ]
-            },
-            {
-              title: 'County',
-              items: [
-                { id: 'all-counties', label: 'All Counties', category: 'Geographic Areas' },
-                { id: 'metropolitan-areas', label: 'Metropolitan Areas', category: 'Geographic Areas' },
-                { id: 'micropolitan-areas', label: 'Micropolitan Areas', category: 'Geographic Areas' }
-              ]
-            },
-            {
-              title: 'Municipality',
-              items: [
-                { id: 'cities', label: 'Cities', category: 'Geographic Areas' },
-                { id: 'towns', label: 'Towns', category: 'Geographic Areas' },
-                { id: 'villages', label: 'Villages', category: 'Geographic Areas' },
-                { id: 'boroughs', label: 'Boroughs', category: 'Geographic Areas' }
-              ]
-            }
-          ]
-        };
-        
-        setFilterCategories([areaSelectionCategory, ...categories]);
+        // Use the categories directly from the finalized catalog (includes Area Selection)
+        setFilterCategories(categories);
         setLoading(false);
       } catch (error) {
         console.error('Error loading filter categories:', error);

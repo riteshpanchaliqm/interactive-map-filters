@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Map as MapIcon, BarChart3, MapPin, Users, TrendingUp, Target } from 'lucide-react';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
@@ -7,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { AnalysisResult, StateBreakdown } from '../utils/dataLoader';
 import realStatesGeoJSON from '../data/realStatesGeoJSON.json';
 import maplibregl from 'maplibre-gl';
+import { InsightsView } from './InsightsView';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 // Mock regional data for visualization
@@ -381,9 +383,9 @@ export function MapView({ selectedFilters, analysisResult }: MapViewProps) {
             ...state,
             properties: {
               ...state.properties,
-              matchingPopulation: analysisData.matchingPopulation,
+              matchingPopulation: Math.round(analysisData.matchingPopulation),
               percentage: analysisData.percentage,
-              population: analysisData.population
+              population: Math.round(analysisData.population)
             }
           };
         } else {
@@ -449,6 +451,44 @@ export function MapView({ selectedFilters, analysisResult }: MapViewProps) {
       }
     }
   }, [analysisResult]);
+
+  // Handle map resize when switching between tabs
+  useEffect(() => {
+    const handleResize = () => {
+      if (map.current) {
+        map.current.resize();
+      }
+    };
+
+    // Add a small delay to ensure the container is properly sized
+    const timeoutId = setTimeout(handleResize, 100);
+    
+    return () => clearTimeout(timeoutId);
+  }, [activeTab]);
+
+  // Ensure map is properly displayed when switching back to map view
+  useEffect(() => {
+    if (activeTab === 'map' && map.current) {
+      // Force a resize and re-render when switching back to map
+      setTimeout(() => {
+        if (map.current) {
+          map.current.resize();
+          // Trigger a style refresh to ensure proper rendering
+          map.current.triggerRepaint();
+        }
+      }, 150);
+    }
+  }, [activeTab]);
+
+  // Cleanup map on component unmount
+  useEffect(() => {
+    return () => {
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
+      }
+    };
+  }, []);
 
   const getStateCoordinates = (stateCode: string): [number, number] => {
     const coordinates: Record<string, [number, number]> = {
@@ -532,7 +572,7 @@ export function MapView({ selectedFilters, analysisResult }: MapViewProps) {
               <div className="absolute top-4 right-4 bg-white p-4 rounded-lg shadow-lg border border-border max-w-sm">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-blue-600">
-                    {analysisResult.matchingPopulation.toLocaleString()}
+                    {Math.round(analysisResult.matchingPopulation).toLocaleString()}
                   </div>
                   <div className="text-sm text-muted-foreground">Matching Population</div>
                   <div className="text-lg font-medium mt-1">
@@ -542,7 +582,7 @@ export function MapView({ selectedFilters, analysisResult }: MapViewProps) {
                 <div className="mt-3 pt-3 border-t border-border">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                    <span className="text-sm">Total Population: {analysisResult.totalPopulation.toLocaleString()}</span>
+                    <span className="text-sm">Total Population: {Math.round(analysisResult.totalPopulation).toLocaleString()}</span>
                   </div>
                 </div>
               </div>
@@ -597,119 +637,11 @@ export function MapView({ selectedFilters, analysisResult }: MapViewProps) {
           </div>
         </TabsContent>
 
-        <TabsContent value="insights" className="flex-1 m-0 p-8">
-          <div className="h-full overflow-y-auto">
-            {analysisResult && analysisResult.totalPopulation > 0 ? (
-              <div className="space-y-6">
-                {/* Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Total Population</CardTitle>
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{analysisResult.totalPopulation.toLocaleString()}</div>
-                      <p className="text-xs text-muted-foreground">US Total</p>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Matching Population</CardTitle>
-                      <Target className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold text-blue-600">{analysisResult.matchingPopulation.toLocaleString()}</div>
-                      <p className="text-xs text-muted-foreground">{analysisResult.percentage.toFixed(2)}% of total</p>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Active Filters</CardTitle>
-                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{selectedFilters.size}</div>
-                      <p className="text-xs text-muted-foreground">Filters applied</p>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* State Breakdown */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>State-by-State Analysis</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {analysisResult.stateBreakdown.slice(0, 10).map((state, index) => (
-                        <div key={state.state} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-sm font-medium">
-                              {index + 1}
-                            </div>
-                            <div>
-                              <div className="font-medium">{state.state}</div>
-                              <div className="text-sm text-muted-foreground">
-                                {state.population.toLocaleString()} total population
-                              </div>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-medium text-blue-600">
-                              {state.matchingPopulation.toLocaleString()}
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              {state.percentage.toFixed(2)}%
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Filter Summary */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Applied Filters</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-2">
-                      {Array.from(selectedFilters).map(filterId => (
-                        <Badge key={filterId} variant="secondary" className="mb-2">
-                          {filterId.split('-').pop()}
-                        </Badge>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            ) : (
-              <div className="h-full flex items-center justify-center">
-                <div className="text-center space-y-4">
-                  <BarChart3 className="w-16 h-16 mx-auto text-muted-foreground" />
-                  <h3>Insights View</h3>
-                  <p className="text-muted-foreground max-w-md">
-                    Select filters to see detailed analytics and insights. This will include demographic breakdowns, 
-                    reach statistics, and state-by-state analysis of your voter segments.
-                  </p>
-                  <div className="pt-4">
-                    <Badge variant="secondary" className="mr-2">
-                      {selectedFilters.size} filters applied
-                    </Badge>
-                    {selectedFilters.size > 0 && (
-                      <Badge variant="outline">
-                        Ready for analysis
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+        <TabsContent value="insights" className="flex-1 m-0">
+          <InsightsView 
+            analysisResult={analysisResult || null} 
+            selectedFilters={selectedFilters} 
+          />
         </TabsContent>
       </Tabs>
     </div>

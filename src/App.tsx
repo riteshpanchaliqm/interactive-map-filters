@@ -31,7 +31,7 @@ export default function App() {
 
     setLoading(true);
     try {
-      const result = voterDataLoader.analyzeFilters(selectedFilters);
+      const result = await voterDataLoader.analyzeFilters(selectedFilters);
       setAnalysisResult(result);
     } catch (error) {
       console.error('Error analyzing filters:', error);

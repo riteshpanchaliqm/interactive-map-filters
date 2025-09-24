@@ -1729,6 +1729,22 @@ html {
   font-size: var(--font-size);
 }
 
+/* Recharts CSS fixes */
+.recharts-wrapper {
+  display: block !important;
+  visibility: visible !important;
+}
+
+.recharts-surface {
+  display: block !important;
+  visibility: visible !important;
+}
+
+.recharts-wrapper svg {
+  display: block !important;
+  visibility: visible !important;
+}
+
 @property --tw-translate-x {
   syntax: "*";
   inherits: false;

@@ -1,7 +1,7 @@
 export interface VoterData {
   state_code: string;
   taxonomy: string;
-  segment: number;
+  segment: number | string;
   population_pct: number;
 }
 
@@ -79,6 +79,8 @@ const TAXONOMY_CATEGORIES: Record<string, string> = {
 import { FILTER_CATALOG, getFilterByTaxonomy, getAllTaxonomies } from './filterCatalog';
 import { analyzeCSVData, CSVAnalysisResult } from './csvAnalyzer';
 import { applyEstimationLogic, EstimationResult } from './estimationLogic';
+import { createValidatedFilterCatalog } from './validatedFilterCatalog';
+import { getFinalizedFilterCatalog } from './finalizedFilterCatalog';
 
 export class VoterDataLoader {
   private data: VoterData[] = [];
@@ -129,14 +131,17 @@ export class VoterDataLoader {
         const [state_code, taxonomy, segment, population_pct] = columns;
         
         if (state_code && taxonomy && segment && population_pct) {
-          const parsedSegment = parseInt(segment);
           const parsedPct = parseFloat(population_pct);
           
-          if (!isNaN(parsedSegment) && !isNaN(parsedPct)) {
+          if (!isNaN(parsedPct)) {
+            // Try to parse segment as number first, if it fails, keep as string
+            const parsedSegment = parseInt(segment);
+            const finalSegment = !isNaN(parsedSegment) ? parsedSegment : segment.trim();
+            
             data.push({
               state_code: state_code.trim(),
               taxonomy: taxonomy.trim(),
-              segment: parsedSegment,
+              segment: finalSegment,
               population_pct: parsedPct
             });
           }
@@ -180,30 +185,35 @@ export class VoterDataLoader {
   }
   
   // Get enhanced filter categories with actual data counts
-  getEnhancedFilterCategories(): FilterCategory[] {
+  async getEnhancedFilterCategories(): Promise<FilterCategory[]> {
     if (!this.csvAnalysis) {
+      console.warn('CSV analysis not available, returning basic catalog');
       return FILTER_CATALOG;
     }
+
+    console.log('Using finalized filter catalog with verified data sources');
     
-    // Enhance the catalog with actual data from CSV analysis
-    return FILTER_CATALOG.map(category => ({
+    // Use the finalized filter catalog that has been thoroughly validated
+    const validatedCatalog = getFinalizedFilterCatalog();
+    
+    // Enhance with actual data counts
+    const enhancedCatalog = validatedCatalog.map(category => ({
       ...category,
       sections: category.sections.map(section => ({
         ...section,
         items: section.items.map(item => {
-          // Find matching taxonomy in CSV analysis
-          const taxonomyData = this.csvAnalysis?.taxonomies.find(t => t.taxonomy === item.taxonomy);
-          if (taxonomyData) {
-            return {
-              ...item,
-              count: taxonomyData.count,
-              states: taxonomyData.states
-            };
-          }
-          return item;
+          const taxonomyData = this.csvAnalysis!.taxonomies.find(t => t.taxonomy === item.taxonomy);
+          return {
+            ...item,
+            count: taxonomyData?.count || 0,
+            states: taxonomyData?.states || []
+          };
         })
       }))
     }));
+
+    console.log('Enhanced validated filter catalog created');
+    return enhancedCatalog;
   }
 
   private getCategoryIcon(category: string): string {
@@ -241,7 +251,7 @@ export class VoterDataLoader {
       .replace(/\b\w/g, l => l.toUpperCase());
   }
 
-  analyzeFilters(selectedFilters: Set<string>): AnalysisResult {
+  async analyzeFilters(selectedFilters: Set<string>): Promise<AnalysisResult> {
     if (selectedFilters.size === 0) {
       return {
         totalPopulation: 0,
@@ -253,8 +263,8 @@ export class VoterDataLoader {
 
     console.log(`Analyzing ${selectedFilters.size} selected filters using estimation logic`);
     
-    // Use the new estimation logic that follows the taxonomy reference guide
-    const estimationResult = applyEstimationLogic(this.data, selectedFilters);
+      // Use the new estimation logic that follows the taxonomy reference guide
+      const estimationResult = await applyEstimationLogic(this.data, selectedFilters);
     
     console.log(`Estimation complete: ${estimationResult.matchingPopulation.toLocaleString()} matching population out of ${estimationResult.totalPopulation.toLocaleString()} total`);
 

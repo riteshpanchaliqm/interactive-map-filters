@@ -1,6 +1,8 @@
 // Estimation Logic - Implements the 4-step process from Taxonomy Reference Guide
 // This utility implements the exact estimation logic specified in the taxonomy reference guide
 
+import { validateDataSources, DataValidationResult } from './dataValidator';
+
 export interface EstimationResult {
   totalPopulation: number;
   matchingPopulation: number;
@@ -120,15 +122,15 @@ export const STATE_POPULATIONS = {
 } as const;
 
 // Apply estimation logic based on taxonomy reference guide with intersection logic
-export function applyEstimationLogic(
+export async function applyEstimationLogic(
   data: Array<{
     state_code: string;
     taxonomy: string;
-    segment: number;
+    segment: number | string;
     population_pct: number;
   }>,
   selectedFilters: Set<string>
-): EstimationResult {
+): Promise<EstimationResult> {
   if (selectedFilters.size === 0) {
     return {
       totalPopulation: 0,
@@ -141,8 +143,12 @@ export function applyEstimationLogic(
   console.log(`Applying estimation logic for ${selectedFilters.size} selected filters`);
   console.log('Selected filters:', Array.from(selectedFilters));
   
+  // Load validation result for calculated segment mappings
+  const validationResult = await validateDataSources();
+  console.log('Validation result loaded:', validationResult);
+  
   // Parse filters into taxonomy + segment combinations
-  const filterCombinations = parseFiltersToCombinations(selectedFilters);
+  const filterCombinations = parseFiltersToCombinations(selectedFilters, validationResult);
   console.log('Filter combinations:', filterCombinations);
   
   const stateResults = new Map<string, { total: number; matching: number }>();
@@ -160,20 +166,22 @@ export function applyEstimationLogic(
     // Handle geographic filtering - only process selected states
     const selectedStates = geographicFilters.map(filter => filter.targetState).filter(Boolean);
     console.log('Geographic filters selected for states:', selectedStates);
+    console.log('Data filters to apply:', dataFilters.length);
     
     stateResults.forEach((stateResult, state) => {
       if (selectedStates.includes(state)) {
-        // For selected states, show 100% of population if no data filters
-        // or apply data filters if they exist
+        // For selected states, apply data filters if they exist
         if (dataFilters.length > 0) {
           const stateData = data.filter(row => row.state_code === state);
+          console.log(`Processing state ${state} with ${stateData.length} records and ${dataFilters.length} data filters`);
           const intersectionPercentage = calculateIntersection(stateData, dataFilters);
           stateResult.matching = intersectionPercentage;
+          console.log(`State ${state} (selected with data filters): ${stateResult.matching}%`);
         } else {
           stateResult.matching = 100; // 100% of state population
+          console.log(`State ${state} (selected, no data filters): 100%`);
         }
         stateResult.total = 100;
-        console.log(`State ${state} (selected): ${stateResult.matching}%`);
       } else {
         // For non-selected states, show 0%
         stateResult.matching = 0;
@@ -235,16 +243,16 @@ export function applyEstimationLogic(
 }
 
 // Parse filters into taxonomy + segment combinations
-function parseFiltersToCombinations(selectedFilters: Set<string>): Array<{
+function parseFiltersToCombinations(selectedFilters: Set<string>, validationResult?: DataValidationResult): Array<{
   taxonomy: string;
-  segment: number | number[] | string;
+  segment: number | number[] | string | string[];
   rule: string;
   isGeographicFilter?: boolean;
   targetState?: string;
 }> {
   const combinations: Array<{
     taxonomy: string;
-    segment: number | number[] | string;
+    segment: number | number[] | string | string[];
     rule: string;
     isGeographicFilter?: boolean;
     targetState?: string;
@@ -268,7 +276,7 @@ function parseFiltersToCombinations(selectedFilters: Set<string>): Array<{
     if (!taxonomy) return;
 
     // Determine segment based on filter type
-    const segment = determineSegmentFromFilter(filterId, taxonomy);
+      const segment = determineSegmentFromFilter(filterId, taxonomy, validationResult);
     const rule = getEstimationRule(taxonomy).rule;
 
     combinations.push({
@@ -282,20 +290,28 @@ function parseFiltersToCombinations(selectedFilters: Set<string>): Array<{
 }
 
 // Determine segment from filter ID
-function determineSegmentFromFilter(filterId: string, taxonomy: string): number | number[] | string {
-  // Handle different filter types based on taxonomy
+function determineSegmentFromFilter(filterId: string, taxonomy: string, validationResult?: DataValidationResult): number | number[] | string | string[] {
+  // Use calculated segment mappings if available
+  if (validationResult && validationResult.segmentMappings[taxonomy]) {
+    const mappings = validationResult.segmentMappings[taxonomy];
+    for (const [key, segments] of Object.entries(mappings)) {
+      if (filterId.includes(key)) {
+        return segments;
+      }
+    }
+  }
+
+  // Fallback to hardcoded mappings
   if (taxonomy === 'voters_gender') {
-    return filterId.includes('male') ? 77 : 78; // M = 77, F = 78
+    return filterId.includes('male') ? 'M' : 'F';
   }
   
   if (taxonomy === 'voters_age') {
-    if (filterId.includes('25_34')) return [25, 30];
-    if (filterId.includes('35_44')) return [35, 40];
-    if (filterId.includes('45_54')) return [45, 50];
-    if (filterId.includes('55_64')) return [55, 60];
-    if (filterId.includes('65_75')) return [65, 70, 75];
-    if (filterId.includes('45_plus')) return [45, 50, 55, 60, 65, 70, 75];
-    return [25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75];
+    if (filterId.includes('18_34')) return [18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34];
+    if (filterId.includes('35_54')) return [35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54];
+    if (filterId.includes('55_74')) return [55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74];
+    if (filterId.includes('75_plus')) return [75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100];
+    return [18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100];
   }
   
   if (taxonomy === 'ethnic_description') {
@@ -328,12 +344,12 @@ function determineSegmentFromFilter(filterId: string, taxonomy: string): number 
   }
   
   if (taxonomy === 'commercialdata_estimatedhhincome') {
-    if (filterId.includes('under_25k')) return [0, 24999];
-    if (filterId.includes('25k_50k')) return [25000, 49999];
-    if (filterId.includes('50k_75k')) return [50000, 74999];
-    if (filterId.includes('75k_100k')) return [75000, 99999];
-    if (filterId.includes('over_100k')) return [100000, 999999];
-    return [0, 999999];
+    if (filterId.includes('under_25k')) return ['$1-25000'];
+    if (filterId.includes('25k_50k')) return ['$25001-50000'];
+    if (filterId.includes('50k_75k')) return ['$50001-75000'];
+    if (filterId.includes('75k_100k')) return ['$75001-100000'];
+    if (filterId.includes('over_100k')) return ['$100001-125000', '$125001-150000', '$150001-175000', '$175001-200000', '$200001-225000', '$225001-250000', '$250000+'];
+    return ['$1-25000', '$25001-50000', '$50001-75000', '$75001-100000', '$100001-125000', '$125001-150000', '$150001-175000', '$175001-200000', '$200001-225000', '$225001-250000', '$250000+'];
   }
   
   if (taxonomy === 'consumerdata_auto_make_1' || taxonomy === 'consumerdata_auto_make_2') {
@@ -361,7 +377,12 @@ function determineSegmentFromFilter(filterId: string, taxonomy: string): number 
   
   // For hs_* taxonomies, apply the >65 rule
   if (taxonomy.startsWith('hs_')) {
-    return '>65'; // Default to supporter/positive
+    if (filterId.includes('supporter')) {
+      return 'supporter';
+    } else if (filterId.includes('opposer')) {
+      return 'opposer';
+    }
+    return 'supporter'; // Default to supporter/positive
   }
   
   return 'All';
@@ -372,12 +393,12 @@ function calculateIntersection(
   stateData: Array<{
     state_code: string;
     taxonomy: string;
-    segment: number;
+    segment: number | string;
     population_pct: number;
   }>,
   filterCombinations: Array<{
     taxonomy: string;
-    segment: number | number[] | string;
+    segment: number | number[] | string | string[];
     rule: string;
     isGeographicFilter?: boolean;
     targetState?: string;
@@ -391,43 +412,130 @@ function calculateIntersection(
   
   // If we have geographic filters, we need to handle them differently
   if (geographicFilters.length > 0) {
-    // For now, if geographic filters are selected, we'll show a base percentage
-    // This represents the total population of the selected state(s)
-    return 100; // 100% of the state's population
+    // If we have both geographic and data filters, apply data filters
+    if (dataFilters.length > 0) {
+      // Apply data filters to the state data
+      console.log(`Applying ${dataFilters.length} data filters to state data`);
+    } else {
+      // For now, if only geographic filters are selected, we'll show a base percentage
+      // This represents the total population of the selected state(s)
+      return 100; // 100% of the state's population
+    }
   }
   
   // If no geographic filters, proceed with normal data filtering
   if (dataFilters.length === 0) return 0;
   
-  // Calculate percentage for each data filter combination
-  const filterPercentages: number[] = [];
+  // Group filters by taxonomy to handle union vs intersection logic
+  const filtersByTaxonomy = new Map<string, typeof dataFilters>();
   
-  dataFilters.forEach(combination => {
-    const matchingData = stateData.filter(row => {
-      if (row.taxonomy !== combination.taxonomy) return false;
-      
-      // Apply special rules based on taxonomy type
-      return applySpecialRules(row, combination);
-    });
-    
-    if (matchingData.length > 0) {
-      const totalPercentage = matchingData.reduce((sum, row) => sum + row.population_pct, 0);
-      filterPercentages.push(totalPercentage);
-      console.log(`Filter ${combination.taxonomy}: ${totalPercentage}%`);
+  dataFilters.forEach(filter => {
+    if (!filtersByTaxonomy.has(filter.taxonomy)) {
+      filtersByTaxonomy.set(filter.taxonomy, []);
+    }
+    filtersByTaxonomy.get(filter.taxonomy)!.push(filter);
+  });
+
+  // Calculate percentage for each taxonomy group
+  const taxonomyPercentages: number[] = [];
+  
+  filtersByTaxonomy.forEach((filters, taxonomy) => {
+    // For demographic filters (gender, age, ethnicity), use UNION logic
+    if (isDemographicTaxonomy(taxonomy)) {
+      const unionPercentage = calculateUnionPercentage(stateData, filters, taxonomy);
+      taxonomyPercentages.push(unionPercentage);
+      console.log(`Demographic filter ${taxonomy} (UNION): ${unionPercentage}%`);
     } else {
-      filterPercentages.push(0);
+      // For political/attitudinal filters, use INTERSECTION logic
+      const intersectionPercentage = calculateIntersectionPercentage(stateData, filters, taxonomy);
+      taxonomyPercentages.push(intersectionPercentage);
+      console.log(`Political filter ${taxonomy} (INTERSECTION): ${intersectionPercentage}%`);
     }
   });
+
+  // Apply intersection logic across different taxonomies
+  if (taxonomyPercentages.length === 0) return 0;
   
-  // Apply intersection logic: multiply percentages
+  const finalPercentage = taxonomyPercentages.reduce((result, percentage) => {
+    return result * (percentage / 100);
+  }, 100);
+
+  console.log(`Final calculation: ${taxonomyPercentages.join(' × ')} = ${finalPercentage}%`);
+  
+  return finalPercentage;
+}
+
+// Check if a taxonomy should use union logic (demographics)
+function isDemographicTaxonomy(taxonomy: string): boolean {
+  const demographicTaxonomies = [
+    'voters_gender',
+    'voters_age', 
+    'ethnic_description',
+    'commercialdata_estimatedhhincome',
+    'consumerdata_auto_make_1',
+    'consumerdata_auto_make_2',
+    'voters_movedfrom_state'
+  ];
+  return demographicTaxonomies.includes(taxonomy);
+}
+
+// Calculate union percentage for demographic filters
+function calculateUnionPercentage(
+  stateData: Array<{
+    state_code: string;
+    taxonomy: string;
+    segment: number | string;
+    population_pct: number;
+  }>,
+  filters: Array<{
+    taxonomy: string;
+    segment: number | number[] | string | string[];
+    rule: string;
+  }>,
+  taxonomy: string
+): number {
+  const matchingRows = stateData.filter(row => 
+    row.taxonomy === taxonomy && 
+    filters.some(filter => applySpecialRules(row, filter))
+  );
+  
+  return matchingRows.reduce((sum, row) => sum + row.population_pct, 0);
+}
+
+// Calculate intersection percentage for political/attitudinal filters
+function calculateIntersectionPercentage(
+  stateData: Array<{
+    state_code: string;
+    taxonomy: string;
+    segment: number | string;
+    population_pct: number;
+  }>,
+  filters: Array<{
+    taxonomy: string;
+    segment: number | number[] | string | string[];
+    rule: string;
+  }>,
+  taxonomy: string
+): number {
+  const filterPercentages: number[] = [];
+  
+  filters.forEach(filter => {
+    const matchingRows = stateData.filter(row => 
+      row.taxonomy === taxonomy && 
+      applySpecialRules(row, filter)
+    );
+    
+    const totalPercentage = matchingRows.reduce((sum, row) => sum + row.population_pct, 0);
+    filterPercentages.push(totalPercentage);
+  });
+
+  // Apply intersection logic within the same taxonomy
   if (filterPercentages.length === 0) return 0;
   
-  const intersectionPercentage = filterPercentages.reduce((product, percentage) => {
-    return product * (percentage / 100);
-  }, 1) * 100;
-  
-  console.log(`Intersection calculation: ${filterPercentages.join(' × ')} = ${intersectionPercentage}%`);
-  
+  const intersectionPercentage = filterPercentages.reduce((result, percentage) => {
+    return result * (percentage / 100);
+  }, 100);
+
   return intersectionPercentage;
 }
 
@@ -436,21 +544,23 @@ function applySpecialRules(
   row: {
     state_code: string;
     taxonomy: string;
-    segment: number;
+    segment: number | string;
     population_pct: number;
   },
   combination: {
     taxonomy: string;
-    segment: number | number[] | string;
+    segment: number | number[] | string | string[];
     rule: string;
   }
 ): boolean {
   // Normalize leading zeros in district codes
   if (combination.taxonomy === '2010_state_senate_district' || combination.taxonomy === '2001_us_congressional_district') {
     const normalizedSegment = row.segment.toString().padStart(2, '0');
-    if (Array.isArray(combination.segment)) {
-      const [min, max] = combination.segment;
-      return row.segment >= min && row.segment <= max;
+    if (Array.isArray(combination.segment) && combination.segment.length === 2) {
+      const [min, max] = combination.segment as number[];
+      if (typeof row.segment === 'number') {
+        return row.segment >= min && row.segment <= max;
+      }
     }
     return false;
   }
@@ -458,8 +568,11 @@ function applySpecialRules(
   // Aggregate all income brackets above 100k
   if (combination.taxonomy === 'commercialdata_estimatedhhincome') {
     if (Array.isArray(combination.segment)) {
-      const [min, max] = combination.segment;
-      return row.segment >= min && row.segment <= max;
+      // For income brackets, the segment values are strings like "$1-25000", "$25001-50000", etc.
+      const segmentString = row.segment.toString();
+      const matches = (combination.segment as string[]).includes(segmentString);
+      console.log(`Checking income segment ${segmentString} against brackets:`, combination.segment, 'Match:', matches);
+      return matches;
     }
     return false;
   }
@@ -476,10 +589,10 @@ function applySpecialRules(
   
   // For hs_* taxonomies: segment > 65 = Supporter/Positive, segment <= 65 = Opposer/Negative
   if (combination.taxonomy.startsWith('hs_')) {
-    if (combination.segment === '>65') {
-      return row.segment > 65;
-    } else if (combination.segment === '<=65') {
-      return row.segment <= 65;
+    if (combination.segment === 'supporter' || combination.segment === '>65') {
+      return typeof row.segment === 'number' && row.segment > 65;
+    } else if (combination.segment === 'opposer' || combination.segment === '<=65') {
+      return typeof row.segment === 'number' && row.segment <= 65;
     }
     return false;
   }
@@ -490,12 +603,17 @@ function applySpecialRules(
   }
   
   if (Array.isArray(combination.segment)) {
-    return combination.segment.includes(row.segment);
+    // Handle both number arrays and string arrays
+    if (combination.segment.length > 0 && typeof combination.segment[0] === 'string') {
+      return (combination.segment as string[]).includes(row.segment.toString());
+    } else {
+      return (combination.segment as number[]).includes(row.segment as number);
+    }
   }
   
   if (typeof combination.segment === 'string') {
     // Handle string-based matching (ethnicity, car makes, etc.)
-    return true; // This would need more specific logic based on actual data
+    return row.segment.toString() === combination.segment;
   }
   
   return false;
@@ -507,7 +625,12 @@ function extractTaxonomyFromFilterId(filterId: string): string | null {
   if (filterId.includes('_')) {
     const parts = filterId.split('_');
     if (parts.length >= 2) {
-      // For filters like 'voters_gender_male', extract 'voters_gender'
+      // For income filters like 'commercialdata_estimatedhhincome_under_25k', 
+      // extract 'commercialdata_estimatedhhincome'
+      if (filterId.startsWith('commercialdata_estimatedhhincome_')) {
+        return 'commercialdata_estimatedhhincome';
+      }
+      // For other filters like 'voters_gender_male', extract 'voters_gender'
       return parts.slice(0, -1).join('_');
     }
   }
@@ -541,33 +664,33 @@ function applyEstimationRule(
   data: Array<{
     state_code: string;
     taxonomy: string;
-    segment: number;
+    segment: number | string;
     population_pct: number;
   }>,
   rule: EstimationRule
 ): Array<{
   state_code: string;
   taxonomy: string;
-  segment: number;
+  segment: number | string;
   population_pct: number;
 }> {
   switch (rule.rule) {
     case 'segment_threshold':
       if (rule.threshold !== undefined) {
-        return data.filter(row => row.segment > rule.threshold!);
+        return data.filter(row => typeof row.segment === 'number' && row.segment > rule.threshold!);
       }
       break;
     
     case 'segment_range':
       if (rule.range) {
         const [min, max] = rule.range;
-        return data.filter(row => row.segment >= min && row.segment <= max);
+        return data.filter(row => typeof row.segment === 'number' && row.segment >= min && row.segment <= max);
       }
       break;
     
     case 'segment_exact':
       if (rule.segments && rule.segments.length > 0) {
-        return data.filter(row => rule.segments!.includes(row.segment));
+        return data.filter(row => rule.segments!.includes(row.segment as number));
       }
       break;
     
@@ -585,7 +708,7 @@ export function validateEstimationRules(
   data: Array<{
     state_code: string;
     taxonomy: string;
-    segment: number;
+    segment: number | string;
     population_pct: number;
   }>
 ): {
