@@ -76,9 +76,14 @@ const TAXONOMY_CATEGORIES: Record<string, string> = {
   'city': 'Geographic Areas'
 };
 
+import { FILTER_CATALOG, getFilterByTaxonomy, getAllTaxonomies } from './filterCatalog';
+import { analyzeCSVData, CSVAnalysisResult } from './csvAnalyzer';
+import { applyEstimationLogic, EstimationResult } from './estimationLogic';
+
 export class VoterDataLoader {
   private data: VoterData[] = [];
   private taxonomies: TaxonomyInfo[] = [];
+  private csvAnalysis: CSVAnalysisResult | null = null;
   private debugMode: boolean = true;
 
   async loadData(): Promise<void> {
@@ -98,6 +103,10 @@ export class VoterDataLoader {
       
       this.taxonomies = this.extractTaxonomies();
       console.log(`Extracted ${this.taxonomies.length} taxonomies`);
+      
+      // Analyze CSV data for accurate cataloging
+      this.csvAnalysis = await analyzeCSVData();
+      console.log('CSV Analysis completed:', this.csvAnalysis);
     } catch (error) {
       console.error('Error loading voter data:', error);
       throw error;
@@ -166,53 +175,35 @@ export class VoterDataLoader {
   }
 
   getFilterCategories(): FilterCategory[] {
-    const categories = new Map<string, FilterCategory>();
-    
-    if (this.debugMode) {
-      console.log(`Creating filter categories from ${this.taxonomies.length} taxonomies`);
+    // Use the comprehensive filter catalog
+    return FILTER_CATALOG;
+  }
+  
+  // Get enhanced filter categories with actual data counts
+  getEnhancedFilterCategories(): FilterCategory[] {
+    if (!this.csvAnalysis) {
+      return FILTER_CATALOG;
     }
     
-    this.taxonomies.forEach(taxonomy => {
-      const categoryName = taxonomy.category;
-      if (!categories.has(categoryName)) {
-        categories.set(categoryName, {
-          id: categoryName.toLowerCase().replace(/\s+/g, '-'),
-          title: categoryName,
-          icon: this.getCategoryIcon(categoryName),
-          sections: []
-        });
-      }
-      
-      const category = categories.get(categoryName)!;
-      const sectionTitle = this.getSectionTitle(taxonomy.name);
-      
-      let section = category.sections.find(s => s.title === sectionTitle);
-      if (!section) {
-        section = {
-          title: sectionTitle,
-          items: [],
-          searchable: true
-        };
-        category.sections.push(section);
-      }
-      
-      section.items.push({
-        id: `${categoryName}-${taxonomy.name}`,
-        label: this.formatTaxonomyLabel(taxonomy.name),
-        taxonomy: taxonomy.name,
-        category: categoryName
-      });
-    });
-    
-    const result = Array.from(categories.values());
-    if (this.debugMode) {
-      console.log(`Created ${result.length} filter categories`);
-      result.forEach(category => {
-        console.log(`- ${category.title}: ${category.sections.reduce((total, section) => total + section.items.length, 0)} items`);
-      });
-    }
-    
-    return result;
+    // Enhance the catalog with actual data from CSV analysis
+    return FILTER_CATALOG.map(category => ({
+      ...category,
+      sections: category.sections.map(section => ({
+        ...section,
+        items: section.items.map(item => {
+          // Find matching taxonomy in CSV analysis
+          const taxonomyData = this.csvAnalysis?.taxonomies.find(t => t.taxonomy === item.taxonomy);
+          if (taxonomyData) {
+            return {
+              ...item,
+              count: taxonomyData.count,
+              states: taxonomyData.states
+            };
+          }
+          return item;
+        })
+      }))
+    }));
   }
 
   private getCategoryIcon(category: string): string {
@@ -260,66 +251,14 @@ export class VoterDataLoader {
       };
     }
 
-    console.log(`Analyzing ${selectedFilters.size} selected filters`);
-    const filterItems = Array.from(selectedFilters);
-    const stateResults = new Map<string, { total: number; matching: number }>();
+    console.log(`Analyzing ${selectedFilters.size} selected filters using estimation logic`);
     
-    // Initialize state results
-    Object.keys(STATE_POPULATIONS).forEach(state => {
-      stateResults.set(state, { total: 0, matching: 0 });
-    });
+    // Use the new estimation logic that follows the taxonomy reference guide
+    const estimationResult = applyEstimationLogic(this.data, selectedFilters);
+    
+    console.log(`Estimation complete: ${estimationResult.matchingPopulation.toLocaleString()} matching population out of ${estimationResult.totalPopulation.toLocaleString()} total`);
 
-    // Process each filter
-    filterItems.forEach(filterId => {
-      // Extract taxonomy from filter ID
-      const taxonomy = this.extractTaxonomyFromFilterId(filterId);
-      if (!taxonomy) return;
-
-      console.log(`Processing filter: ${filterId} -> taxonomy: ${taxonomy}`);
-
-      // Find matching data for this taxonomy
-      const matchingData = this.data.filter(row => row.taxonomy === taxonomy);
-      console.log(`Found ${matchingData.length} matching records for taxonomy: ${taxonomy}`);
-      
-      matchingData.forEach(row => {
-        const stateResult = stateResults.get(row.state_code);
-        if (stateResult) {
-          stateResult.total += row.population_pct;
-          stateResult.matching += row.population_pct;
-        }
-      });
-    });
-
-    // Calculate results
-    const stateBreakdown: StateBreakdown[] = [];
-    let totalPopulation = 0;
-    let matchingPopulation = 0;
-
-    stateResults.forEach((result, state) => {
-      const statePop = STATE_POPULATIONS[state] || 0;
-      const matchingPop = (result.matching / 100) * statePop;
-      
-      if (matchingPop > 0) {
-        stateBreakdown.push({
-          state,
-          population: statePop,
-          matchingPopulation: matchingPop,
-          percentage: result.matching
-        });
-      }
-      
-      totalPopulation += statePop;
-      matchingPopulation += matchingPop;
-    });
-
-    console.log(`Analysis complete: ${matchingPopulation.toLocaleString()} matching population out of ${totalPopulation.toLocaleString()} total`);
-
-    return {
-      totalPopulation,
-      matchingPopulation,
-      percentage: totalPopulation > 0 ? (matchingPopulation / totalPopulation) * 100 : 0,
-      stateBreakdown: stateBreakdown.sort((a, b) => b.matchingPopulation - a.matchingPopulation)
-    };
+    return estimationResult;
   }
 
   private extractTaxonomyFromFilterId(filterId: string): string | null {

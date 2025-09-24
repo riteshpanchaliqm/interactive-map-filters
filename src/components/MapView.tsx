@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Map, BarChart3, MapPin, Users, TrendingUp, Target } from 'lucide-react';
+import { Map as MapIcon, BarChart3, MapPin, Users, TrendingUp, Target } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
@@ -202,13 +202,8 @@ export function MapView({ selectedFilters, analysisResult }: MapViewProps) {
         // Always add state boundaries first
         addStateBoundaries();
         
-        // Then add data based on whether filters are applied
-        if (analysisResult) {
-          addHeatmapToMap(analysisResult);
-        } else {
-          // Show sample data with state boundaries
-          addSampleHeatmap();
-        }
+        // Then add initial data (sample data by default)
+        addSampleHeatmap();
       });
     }
 
@@ -225,6 +220,20 @@ export function MapView({ selectedFilters, analysisResult }: MapViewProps) {
     if (!map.current) return;
     
     console.log('Adding state boundaries...');
+    
+    // Check if GeoJSON data is available
+    if (!realStatesGeoJSON || !realStatesGeoJSON.features) {
+      console.error('GeoJSON data not available');
+      return;
+    }
+    
+    // Check if source already exists and remove it first
+    if (map.current.getSource('state-boundaries')) {
+      console.log('Removing existing state boundaries...');
+      if (map.current.getLayer('state-fill')) map.current.removeLayer('state-fill');
+      if (map.current.getLayer('state-borders')) map.current.removeLayer('state-borders');
+      map.current.removeSource('state-boundaries');
+    }
     
     // Add state boundaries source
     map.current.addSource('state-boundaries', {
@@ -262,6 +271,12 @@ export function MapView({ selectedFilters, analysisResult }: MapViewProps) {
     if (!map.current) return;
     
     console.log('Adding sample heatmap with state boundaries...');
+    
+    // Check if GeoJSON data is available
+    if (!realStatesGeoJSON || !realStatesGeoJSON.features) {
+      console.error('GeoJSON data not available for sample heatmap');
+      return;
+    }
     
     // Create sample data with state boundaries and sample voter data
     const sampleData = {
@@ -340,10 +355,16 @@ export function MapView({ selectedFilters, analysisResult }: MapViewProps) {
     
     console.log('Adding heatmap to map with analysis data:', result.stateBreakdown);
     
-    // Create a map of state data for quick lookup
-    const stateDataMap = new Map();
+    // Check if GeoJSON data is available
+    if (!realStatesGeoJSON || !realStatesGeoJSON.features) {
+      console.error('GeoJSON data not available for heatmap');
+      return;
+    }
+    
+    // Create a lookup object for state data
+    const stateDataLookup: Record<string, any> = {};
     result.stateBreakdown.forEach(state => {
-      stateDataMap.set(state.state, state);
+      stateDataLookup[state.state] = state;
     });
     
     // Create heatmap data by combining state boundaries with analysis results
@@ -353,7 +374,7 @@ export function MapView({ selectedFilters, analysisResult }: MapViewProps) {
         const stateCode = state.properties.name === 'California' ? 'CA' : 
                          state.properties.name === 'New York' ? 'NY' : 
                          state.properties.name === 'Wyoming' ? 'WY' : state.properties.name;
-        const analysisData = stateDataMap.get(stateCode);
+        const analysisData = stateDataLookup[stateCode];
         
         if (analysisData) {
           return {
@@ -373,7 +394,7 @@ export function MapView({ selectedFilters, analysisResult }: MapViewProps) {
               ...state.properties,
               matchingPopulation: 0,
               percentage: 0,
-              population: state.properties.population || 0
+              population: state.properties.density || 0
             }
           };
         }
@@ -420,12 +441,10 @@ export function MapView({ selectedFilters, analysisResult }: MapViewProps) {
   useEffect(() => {
     if (map.current && map.current.isStyleLoaded()) {
       if (analysisResult && analysisResult.stateBreakdown.length > 0) {
-        // Add state boundaries and real analysis data
-        addStateBoundaries();
+        // Add real analysis data (state boundaries should already exist)
         addHeatmapToMap(analysisResult);
       } else {
-        // Show sample data with state boundaries
-        addStateBoundaries();
+        // Show sample data (state boundaries should already exist)
         addSampleHeatmap();
       }
     }
@@ -493,7 +512,7 @@ export function MapView({ selectedFilters, analysisResult }: MapViewProps) {
         <div className="p-4 border-b border-border bg-white">
           <TabsList className="grid w-fit grid-cols-2">
             <TabsTrigger value="map" className="flex items-center gap-2">
-              <Map className="w-4 h-4" />
+              <MapIcon className="w-4 h-4" />
               Map View
             </TabsTrigger>
             <TabsTrigger value="insights" className="flex items-center gap-2">

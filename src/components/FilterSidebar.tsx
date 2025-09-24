@@ -39,9 +39,9 @@ export function FilterSidebar({ selectedFilters, onFilterChange, onReset, onAppl
 
   useEffect(() => {
     const loadData = async () => {
-      try {
-        await voterDataLoader.loadData();
-        const categories = voterDataLoader.getFilterCategories();
+        try {
+          await voterDataLoader.loadData();
+          const categories = voterDataLoader.getEnhancedFilterCategories();
         
         // Add area selection category
         const areaSelectionCategory: FilterCategory = {
