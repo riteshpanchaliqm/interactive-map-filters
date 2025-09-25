@@ -4,7 +4,6 @@ import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
-import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { voterDataLoader, FilterCategory, AnalysisResult } from '../utils/dataLoader';
 
@@ -12,12 +11,11 @@ import { voterDataLoader, FilterCategory, AnalysisResult } from '../utils/dataLo
 interface FilterSidebarProps {
   selectedFilters: Set<string>;
   onFilterChange: (filterId: string, checked: boolean) => void;
-  onReset: () => void;
-  onApply: () => void;
+  onClearAll: () => void;
   analysisResult?: AnalysisResult;
 }
 
-export function FilterSidebar({ selectedFilters, onFilterChange, onReset, onApply, analysisResult }: FilterSidebarProps) {
+export function FilterSidebar({ selectedFilters, onFilterChange, onClearAll, analysisResult }: FilterSidebarProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sectionSearchTerms, setSectionSearchTerms] = useState<Record<string, string>>({});
   const [filterCategories, setFilterCategories] = useState<FilterCategory[]>([]);
@@ -74,7 +72,7 @@ export function FilterSidebar({ selectedFilters, onFilterChange, onReset, onAppl
   }
 
   return (
-    <div className="w-80 bg-white border-r border-border flex flex-col h-full">
+    <div className="w-80 bg-white border-r border-border flex flex-col h-screen">
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between mb-4">
           <h2 className="flex items-center gap-2">
@@ -98,7 +96,7 @@ export function FilterSidebar({ selectedFilters, onFilterChange, onReset, onAppl
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
+      <div className="flex-1 overflow-y-auto">
         <div className="p-4">
           <Accordion type="multiple" className="space-y-2">
             {filteredCategories.map((category) => (
@@ -169,39 +167,110 @@ export function FilterSidebar({ selectedFilters, onFilterChange, onReset, onAppl
             ))}
           </Accordion>
         </div>
-      </ScrollArea>
+      </div>
 
-      {/* Sample Filter Presets */}
-      <div className="p-4 border-t border-border bg-gray-50">
-        <h3 className="text-sm font-medium mb-2">Quick Filters</h3>
-        <div className="space-y-2">
+      {/* Quick Filter Presets */}
+      <div className="p-2 border-t border-border bg-gray-50">
+        <h3 className="text-xs font-medium mb-1">Quick Filters</h3>
+        <div className="grid grid-cols-2 gap-1">
           <Button 
             variant="outline" 
             size="sm" 
-            className="w-full text-xs"
+            className="w-full text-xs py-1 px-2 h-6"
             onClick={() => {
-              // Add some sample political attitude filters
-              const sampleFilters = new Set(selectedFilters);
-              sampleFilters.add('Political Attitudes-hs_gun_control_support');
-              sampleFilters.add('Political Attitudes-hs_ideology_fiscal_conserv');
-              onFilterChange('Political Attitudes-hs_gun_control_support', true);
-              onFilterChange('Political Attitudes-hs_ideology_fiscal_conserv', true);
+              // Clear existing filters first
+              selectedFilters.forEach(filterId => {
+                onFilterChange(filterId, false);
+              });
+              // Add gun control supporter and fiscal conservative supporter
+              onFilterChange('hs_gun_control_support_supporter', true);
+              onFilterChange('hs_ideology_fiscal_conserv_supporter', true);
             }}
           >
-            Gun Control + Fiscal Conservative
+            🏛️ Conservative Voters
           </Button>
           <Button 
             variant="outline" 
             size="sm" 
-            className="w-full text-xs"
+            className="w-full text-xs py-1 px-2 h-6"
             onClick={() => {
-              // Add some sample consumer data filters
-              const sampleFilters = new Set(selectedFilters);
-              sampleFilters.add('Consumer Data-consumerdata_estimated_income_amount');
-              onFilterChange('Consumer Data-consumerdata_estimated_income_amount', true);
+              // Clear existing filters first
+              selectedFilters.forEach(filterId => {
+                onFilterChange(filterId, false);
+              });
+              // Add high income filter
+              onFilterChange('commercialdata_estimatedhhincome_over_100k', true);
             }}
           >
-            High Income Voters
+            💰 High Income Voters
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="w-full text-xs py-1 px-2 h-6"
+            onClick={() => {
+              // Clear existing filters first
+              selectedFilters.forEach(filterId => {
+                onFilterChange(filterId, false);
+              });
+              // Add young voters
+              onFilterChange('voters_age_18_34', true);
+            }}
+          >
+            👥 Young Voters (18-34)
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="w-full text-xs py-1 px-2 h-6"
+            onClick={() => {
+              // Clear existing filters first
+              selectedFilters.forEach(filterId => {
+                onFilterChange(filterId, false);
+              });
+              // Add Toyota owners
+              onFilterChange('consumerdata_auto_make_toyota', true);
+            }}
+          >
+            🚗 Toyota Owners
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="w-full text-xs py-1 px-2 h-6"
+            onClick={() => {
+              // Clear existing filters first
+              selectedFilters.forEach(filterId => {
+                onFilterChange(filterId, false);
+              });
+              // Add Hispanic voters
+              onFilterChange('ethnic_description_hispanic', true);
+            }}
+          >
+            🌎 Hispanic Voters
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="w-full text-xs py-1 px-2 h-6"
+            onClick={() => {
+              // Clear existing filters first
+              selectedFilters.forEach(filterId => {
+                onFilterChange(filterId, false);
+              });
+              // Add California state
+              onFilterChange('state-CA', true);
+            }}
+          >
+            🗺️ California Only
+          </Button>
+          <Button 
+            variant="destructive" 
+            size="sm" 
+            className="w-full text-xs py-1 px-2 h-6"
+            onClick={onClearAll}
+          >
+            🗑️ Clear All Filters
           </Button>
         </div>
       </div>
@@ -227,14 +296,6 @@ export function FilterSidebar({ selectedFilters, onFilterChange, onReset, onAppl
         </div>
       )}
 
-      <div className="p-4 border-t border-border flex gap-2">
-        <Button variant="outline" onClick={onReset} className="flex-1">
-          Reset
-        </Button>
-        <Button onClick={onApply} className="flex-1">
-          Apply
-        </Button>
-      </div>
     </div>
   );
 }

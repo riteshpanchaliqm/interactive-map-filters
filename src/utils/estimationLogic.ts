@@ -2,6 +2,12 @@
 // This utility implements the exact estimation logic specified in the taxonomy reference guide
 
 import { validateDataSources, DataValidationResult } from './dataValidator';
+import { 
+  CALCULATED_FILTERS, 
+  calculateFilterPercentage, 
+  isCalculatedFilter, 
+  getCalculatedFilter 
+} from './calculatedFilters';
 
 export interface EstimationResult {
   totalPopulation: number;
@@ -146,6 +152,7 @@ export async function applyEstimationLogic(
   // Load validation result for calculated segment mappings
   const validationResult = await validateDataSources();
   console.log('Validation result loaded:', validationResult);
+  console.log('Segment mappings for voters_gender:', validationResult.segmentMappings.voters_gender);
   
   // Parse filters into taxonomy + segment combinations
   const filterCombinations = parseFiltersToCombinations(selectedFilters, validationResult);
@@ -276,12 +283,14 @@ function parseFiltersToCombinations(selectedFilters: Set<string>, validationResu
     if (!taxonomy) return;
 
     // Determine segment based on filter type
-      const segment = determineSegmentFromFilter(filterId, taxonomy, validationResult);
+    const segment = determineSegmentFromFilter(filterId, taxonomy, validationResult);
     const rule = getEstimationRule(taxonomy).rule;
+
+    console.log(`Creating combination for ${filterId}: taxonomy=${taxonomy}, segment=${segment}, rule=${rule}`);
 
     combinations.push({
       taxonomy,
-      segment,
+      segment: segment as number | number[] | string | string[],
       rule
     });
   });
@@ -290,37 +299,35 @@ function parseFiltersToCombinations(selectedFilters: Set<string>, validationResu
 }
 
 // Determine segment from filter ID
-function determineSegmentFromFilter(filterId: string, taxonomy: string, validationResult?: DataValidationResult): number | number[] | string | string[] {
+function determineSegmentFromFilter(filterId: string, taxonomy: string, validationResult?: DataValidationResult): number | number[] | string | string[] | (string | number)[] {
+  // Check if this is a calculated filter first
+  if (isCalculatedFilter(filterId)) {
+    const calculatedFilter = getCalculatedFilter(filterId);
+    if (calculatedFilter) {
+      console.log(`Using calculated filter: ${filterId} -> ${calculatedFilter.sourceSegments.length} source segments`);
+      return calculatedFilter.sourceSegments;
+    }
+  }
+
   // Use calculated segment mappings if available
   if (validationResult && validationResult.segmentMappings[taxonomy]) {
     const mappings = validationResult.segmentMappings[taxonomy];
+    console.log(`Using validation mappings for ${taxonomy}:`, mappings);
     for (const [key, segments] of Object.entries(mappings)) {
-      if (filterId.includes(key)) {
+      console.log(`Checking validation mapping: ${key} against filterId: ${filterId}`);
+      if (filterId.endsWith(`_${key}`)) {
+        console.log(`Found validation mapping: ${key} -> ${segments}`);
         return segments;
       }
     }
   }
 
-  // Fallback to hardcoded mappings
+  // Fallback to hardcoded mappings for non-calculated filters
   if (taxonomy === 'voters_gender') {
-    return filterId.includes('male') ? 'M' : 'F';
-  }
-  
-  if (taxonomy === 'voters_age') {
-    if (filterId.includes('18_34')) return [18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34];
-    if (filterId.includes('35_54')) return [35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54];
-    if (filterId.includes('55_74')) return [55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74];
-    if (filterId.includes('75_plus')) return [75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100];
-    return [18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100];
-  }
-  
-  if (taxonomy === 'ethnic_description') {
-    if (filterId.includes('african_american')) return 'African American';
-    if (filterId.includes('hispanic')) return 'Hispanic';
-    if (filterId.includes('white')) return 'White';
-    if (filterId.includes('asian')) return 'Asian';
-    if (filterId.includes('other')) return 'Other';
-    return 'All';
+    console.log(`Processing gender filter: ${filterId}, taxonomy: ${taxonomy}`);
+    const segment = filterId.includes('male') ? 'M' : 'F';
+    console.log(`Gender filter ${filterId} mapped to segment: ${segment}`);
+    return segment;
   }
   
   if (taxonomy === '2010_state_senate_district') {
@@ -353,10 +360,49 @@ function determineSegmentFromFilter(filterId: string, taxonomy: string, validati
   }
   
   if (taxonomy === 'consumerdata_auto_make_1' || taxonomy === 'consumerdata_auto_make_2') {
-    if (filterId.includes('ford')) return 'Ford';
-    if (filterId.includes('toyota')) return 'Toyota';
-    if (filterId.includes('kia')) return 'Kia';
-    if (filterId.includes('hyundai')) return 'Hyundai';
+    console.log(`Processing consumer data filter: ${filterId}, taxonomy: ${taxonomy}`);
+    console.log(`Filter ID includes 'toyota': ${filterId.includes('toyota')}`);
+    if (filterId.includes('ford')) {
+      console.log(`Ford filter mapped to segment: Ford`);
+      return 'Ford';
+    }
+    if (filterId.includes('toyota')) {
+      console.log(`Toyota filter mapped to segment: Toyota`);
+      return 'Toyota';
+    }
+    if (filterId.includes('honda')) {
+      console.log(`Honda filter mapped to segment: Honda`);
+      return 'Honda';
+    }
+    if (filterId.includes('chevrolet')) {
+      console.log(`Chevrolet filter mapped to segment: Chevrolet`);
+      return 'Chevrolet';
+    }
+    if (filterId.includes('nissan')) {
+      console.log(`Nissan filter mapped to segment: Nissan`);
+      return 'Nissan';
+    }
+    if (filterId.includes('kia')) {
+      console.log(`Kia filter mapped to segment: Kia`);
+      return 'Kia';
+    }
+    if (filterId.includes('hyundai')) {
+      console.log(`Hyundai filter mapped to segment: Hyundai`);
+      return 'Hyundai';
+    }
+    if (filterId.includes('bmw')) {
+      console.log(`BMW filter mapped to segment: BMW`);
+      return 'BMW';
+    }
+    if (filterId.includes('mercedes')) {
+      console.log(`Mercedes filter mapped to segment: Mercedes-Benz`);
+      return 'Mercedes-Benz';
+    }
+    if (filterId.includes('audi')) {
+      console.log(`Audi filter mapped to segment: Audi`);
+      return 'Audi';
+    }
+    console.log(`Consumer data filter ${filterId} mapped to 'All'`);
     return 'All';
   }
   
@@ -368,10 +414,79 @@ function determineSegmentFromFilter(filterId: string, taxonomy: string, validati
     return '<=65'; // Segment <=65 = No
   }
   
+  if (taxonomy === 'ethnic_description') {
+    console.log(`Processing ethnicity filter: ${filterId}, taxonomy: ${taxonomy}`);
+    if (filterId.includes('african_american')) {
+      const segments = ['African or Af-Am Self Reported', 'Likely Af-Am (Modeled)'];
+      console.log(`African American filter mapped to segments: ${segments.join(', ')}`);
+      return segments;
+    }
+    if (filterId.includes('hispanic')) {
+      console.log(`Hispanic filter mapped to segment: Hispanic`);
+      return 'Hispanic';
+    }
+    if (filterId.includes('white')) {
+      const segments = ['English/Welsh', 'German', 'Irish', 'Italian', 'French', 'Dutch (Netherlands)', 'Norwegian', 'Swedish', 'Danish', 'Finnish', 'Polish', 'Czech', 'Hungarian', 'Austrian', 'Swiss', 'Scots'];
+      console.log(`White filter mapped to ${segments.length} segments`);
+      return segments;
+    }
+    if (filterId.includes('asian')) {
+      const segments = ['Chinese', 'Japanese', 'Korean', 'Vietnamese', 'Filipino', 'Indian/Hindu', 'Pakistani', 'Bangladeshi', 'Sri Lankan', 'Thai', 'Indonesian', 'Malay', 'Myanmar (Burmese)', 'Laotian', 'Khmer', 'Tibetan', 'Bhutanese', 'Tonga', 'Unknown Asian'];
+      console.log(`Asian filter mapped to ${segments.length} segments`);
+      return segments;
+    }
+    if (filterId.includes('other')) {
+      const segments = ['Native American', 'Hawaiian', 'Arab', 'Armenian', 'Persian', 'Turkish', 'Albanian', 'Bulgarian', 'Croatian', 'Serbian', 'Slovenian', 'Slovakian', 'Romanian', 'Russian (omitting former Soviet States)', 'Ukrainian', 'Byelorussian', 'Estonian', 'Latvian', 'Lithuanian', 'Georgian', 'Azerb', 'Kazak', 'Uzbek', 'Turkmenistan', 'Mongolian', 'Afghan', 'Belgian', 'Greek', 'Portuguese'];
+      console.log(`Other ethnicity filter mapped to ${segments.length} segments`);
+      return segments;
+    }
+    console.log(`Ethnicity filter ${filterId} mapped to 'All'`);
+    return 'All';
+  }
+  
   if (taxonomy === 'voters_movedfrom_state') {
-    if (filterId.includes('nj')) return 'NJ';
-    if (filterId.includes('oh')) return 'OH';
-    if (filterId.includes('va')) return 'VA';
+    console.log(`Processing migration filter: ${filterId}, taxonomy: ${taxonomy}`);
+    if (filterId.includes('ca')) {
+      console.log(`CA migration filter mapped to segment: CA`);
+      return 'CA';
+    }
+    if (filterId.includes('ny')) {
+      console.log(`NY migration filter mapped to segment: NY`);
+      return 'NY';
+    }
+    if (filterId.includes('tx')) {
+      console.log(`TX migration filter mapped to segment: TX`);
+      return 'TX';
+    }
+    if (filterId.includes('fl')) {
+      console.log(`FL migration filter mapped to segment: FL`);
+      return 'FL';
+    }
+    if (filterId.includes('nj')) {
+      console.log(`NJ migration filter mapped to segment: NJ`);
+      return 'NJ';
+    }
+    if (filterId.includes('oh')) {
+      console.log(`OH migration filter mapped to segment: OH`);
+      return 'OH';
+    }
+    if (filterId.includes('va')) {
+      console.log(`VA migration filter mapped to segment: VA`);
+      return 'VA';
+    }
+    if (filterId.includes('il')) {
+      console.log(`IL migration filter mapped to segment: IL`);
+      return 'IL';
+    }
+    if (filterId.includes('pa')) {
+      console.log(`PA migration filter mapped to segment: PA`);
+      return 'PA';
+    }
+    if (filterId.includes('ga')) {
+      console.log(`GA migration filter mapped to segment: GA`);
+      return 'GA';
+    }
+    console.log(`Migration filter ${filterId} mapped to 'All'`);
     return 'All';
   }
   
@@ -494,12 +609,72 @@ function calculateUnionPercentage(
   }>,
   taxonomy: string
 ): number {
+  console.log(`Calculating union for ${taxonomy} with filters:`, filters);
+  console.log(`Available ${taxonomy} data:`, stateData.filter(row => row.taxonomy === taxonomy).map(row => ({ segment: row.segment, pct: row.population_pct })));
+  
+  // Check if any of the filters are calculated filters
+  // For age groups, we need to handle them as calculated filters
+  if (taxonomy === 'voters_age') {
+    console.log(`Using calculated filter logic for age taxonomy: ${taxonomy}`);
+    return calculateCalculatedFilterPercentage(stateData, filters, taxonomy);
+  }
+  
+  // Debug: Log all filters being processed
+  console.log(`Processing union for ${taxonomy} with ${filters.length} filters:`, filters.map(f => ({ taxonomy: f.taxonomy, segment: f.segment, rule: f.rule })));
+  
   const matchingRows = stateData.filter(row => 
     row.taxonomy === taxonomy && 
-    filters.some(filter => applySpecialRules(row, filter))
+    filters.some(filter => {
+      const matches = applySpecialRules(row, filter);
+      console.log(`Row ${row.segment} matches filter ${filter.segment}: ${matches}`);
+      return matches;
+    })
   );
   
-  return matchingRows.reduce((sum, row) => sum + row.population_pct, 0);
+  console.log(`Found ${matchingRows.length} matching rows for ${taxonomy}:`, matchingRows);
+  console.log(`All available ${taxonomy} rows in data:`, stateData.filter(row => row.taxonomy === taxonomy));
+  
+  const totalPercentage = matchingRows.reduce((sum, row) => sum + row.population_pct, 0);
+  console.log(`Total percentage for ${taxonomy}: ${totalPercentage}%`);
+  
+  return totalPercentage;
+}
+
+// Calculate percentage for calculated filters
+function calculateCalculatedFilterPercentage(
+  stateData: Array<{
+    state_code: string;
+    taxonomy: string;
+    segment: number | string;
+    population_pct: number;
+  }>,
+  filters: Array<{
+    taxonomy: string;
+    segment: number | number[] | string | string[];
+    rule: string;
+  }>,
+  taxonomy: string
+): number {
+  console.log(`Calculating percentage for calculated filters in ${taxonomy}`);
+  
+  // For calculated filters, we need to sum up all matching segments
+  const matchingRows = stateData.filter(row => {
+    if (row.taxonomy !== taxonomy) return false;
+    
+    // Check if this row's segment matches any of the filter segments
+    return filters.some(filter => {
+      if (Array.isArray(filter.segment)) {
+        return (filter.segment as (string | number)[]).includes(row.segment);
+      } else {
+        return row.segment === filter.segment;
+      }
+    });
+  });
+  
+  const totalPercentage = matchingRows.reduce((sum, row) => sum + row.population_pct, 0);
+  console.log(`Calculated filter percentage for ${taxonomy}: ${totalPercentage}% (${matchingRows.length} matching rows)`);
+  
+  return totalPercentage;
 }
 
 // Calculate intersection percentage for political/attitudinal filters
@@ -613,7 +788,9 @@ function applySpecialRules(
   
   if (typeof combination.segment === 'string') {
     // Handle string-based matching (ethnicity, car makes, etc.)
-    return row.segment.toString() === combination.segment;
+    const matches = row.segment.toString() === combination.segment;
+    console.log(`String matching: row.segment="${row.segment}" vs filter.segment="${combination.segment}" = ${matches}`);
+    return matches;
   }
   
   return false;
@@ -629,6 +806,22 @@ function extractTaxonomyFromFilterId(filterId: string): string | null {
       // extract 'commercialdata_estimatedhhincome'
       if (filterId.startsWith('commercialdata_estimatedhhincome_')) {
         return 'commercialdata_estimatedhhincome';
+      }
+      // For age filters like 'voters_age_18_34', extract 'voters_age'
+      if (filterId.startsWith('voters_age_')) {
+        return 'voters_age';
+      }
+      // For consumer data filters like 'consumerdata_auto_make_toyota', extract 'consumerdata_auto_make_1'
+      if (filterId.startsWith('consumerdata_auto_make_')) {
+        return 'consumerdata_auto_make_1';
+      }
+      // For ethnicity filters like 'ethnic_description_white', extract 'ethnic_description'
+      if (filterId.startsWith('ethnic_description_')) {
+        return 'ethnic_description';
+      }
+      // For migration filters like 'voters_movedfrom_state_ca', extract 'voters_movedfrom_state'
+      if (filterId.startsWith('voters_movedfrom_state_')) {
+        return 'voters_movedfrom_state';
       }
       // For other filters like 'voters_gender_male', extract 'voters_gender'
       return parts.slice(0, -1).join('_');

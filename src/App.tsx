@@ -18,35 +18,28 @@ export default function App() {
     setSelectedFilters(newFilters);
   };
 
-  const handleReset = () => {
+  const handleClearAll = () => {
     setSelectedFilters(new Set());
     setAnalysisResult(undefined);
   };
 
-  const handleApply = async () => {
-    if (selectedFilters.size === 0) {
-      setAnalysisResult(undefined);
-      return;
-    }
 
-    setLoading(true);
-    try {
-      const result = await voterDataLoader.analyzeFilters(selectedFilters);
-      setAnalysisResult(result);
-    } catch (error) {
-      console.error('Error analyzing filters:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Auto-apply analysis when filters change
   useEffect(() => {
     if (selectedFilters.size > 0) {
       console.log('Filters changed, scheduling analysis...', Array.from(selectedFilters));
-      const timeoutId = setTimeout(() => {
+      const timeoutId = setTimeout(async () => {
         console.log('Executing analysis...');
-        handleApply();
+        setLoading(true);
+        try {
+          const result = await voterDataLoader.analyzeFilters(selectedFilters);
+          setAnalysisResult(result);
+        } catch (error) {
+          console.error('Error analyzing filters:', error);
+        } finally {
+          setLoading(false);
+        }
       }, 500); // Debounce analysis
 
       return () => clearTimeout(timeoutId);
@@ -60,14 +53,14 @@ export default function App() {
       <FilterSidebar
         selectedFilters={selectedFilters}
         onFilterChange={handleFilterChange}
-        onReset={handleReset}
-        onApply={handleApply}
+        onClearAll={handleClearAll}
         analysisResult={analysisResult}
       />
       <MapView 
         selectedFilters={selectedFilters} 
         analysisResult={analysisResult}
       />
+      
     </div>
   );
 }
