@@ -29,7 +29,7 @@ export interface CSVAnalysisResult {
 // Analyze the CSV data to extract taxonomy information
 export async function analyzeCSVData(): Promise<CSVAnalysisResult> {
   try {
-    const response = await fetch('/Data/wycany.csv');
+    const response = await fetch('/wycany.csv');
     const csvText = await response.text();
     
     const lines = csvText.split('\n');

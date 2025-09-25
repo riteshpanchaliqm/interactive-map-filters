@@ -21,7 +21,7 @@ export async function validateDataSources(): Promise<DataValidationResult> {
   console.log('Starting data source validation...');
   
   // Load CSV data
-  const response = await fetch('/Data/wycany.csv');
+  const response = await fetch('/wycany.csv');
   if (!response.ok) {
     throw new Error(`Failed to load CSV: ${response.status} ${response.statusText}`);
   }

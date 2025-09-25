@@ -31,7 +31,7 @@ export const FINALIZED_FILTER_CATALOG: FilterCategory[] = [
         {
           id: 'state-CA',
           label: 'California (CA)',
-          description: 'California state - 39.5M population',
+          description: 'California state - 23.1M population',
           category: 'Geographic Areas',
           taxonomy: 'state',
           count: 0,

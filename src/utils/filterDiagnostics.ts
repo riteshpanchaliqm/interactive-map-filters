@@ -42,7 +42,7 @@ export async function testSingleFilter(filterId: string): Promise<FilterDiagnost
   
   try {
     // Load CSV data
-    const response = await fetch('/Data/wycany.csv');
+    const response = await fetch('/wycany.csv');
     const csvText = await response.text();
     const lines = csvText.split('\n');
     

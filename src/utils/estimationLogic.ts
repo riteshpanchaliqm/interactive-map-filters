@@ -122,9 +122,9 @@ export const HS_TAXONOMY_RULE: EstimationRule = {
 
 // State populations for estimation
 export const STATE_POPULATIONS = {
-  'CA': 39538223,
-  'NY': 20201249,
-  'WY': 576851
+  'CA': 23094847,
+  'NY': 12363444,
+  'WY': 342030
 } as const;
 
 // Apply estimation logic based on taxonomy reference guide with intersection logic

@@ -48,7 +48,7 @@ export interface StateBreakdown {
 
 // State population data (approximate 2020 census data)
 const STATE_POPULATIONS: Record<string, number> = {
-  'CA': 39538223, 'TX': 29145505, 'FL': 21538187, 'NY': 19453561,
+  'CA': 23094847, 'TX': 29145505, 'FL': 21538187, 'NY': 12363444,
   'PA': 12801989, 'IL': 12671821, 'OH': 11799448, 'GA': 10711908,
   'NC': 10439388, 'MI': 10037261, 'NJ': 9288994, 'VA': 8631393,
   'WA': 7705281, 'AZ': 7151502, 'MA': 7029917, 'TN': 6910840,
@@ -60,7 +60,7 @@ const STATE_POPULATIONS: Record<string, number> = {
   'NE': 1961504, 'WV': 1793716, 'ID': 1839106, 'HI': 1455271,
   'NH': 1377529, 'ME': 1344212, 'RI': 1097379, 'MT': 1084225,
   'DE': 989948, 'SD': 886667, 'ND': 779094, 'AK': 733391,
-  'VT': 643077, 'WY': 576851, 'DC': 689545
+  'VT': 643077, 'WY': 342030, 'DC': 689545
 };
 
 // Taxonomy categories mapping
@@ -91,7 +91,7 @@ export class VoterDataLoader {
   async loadData(): Promise<void> {
     try {
       console.log('Loading voter data from CSV...');
-      const response = await fetch('/Data/wycany.csv');
+      const response = await fetch('/wycany.csv');
       
       if (!response.ok) {
         throw new Error(`Failed to load CSV: ${response.status} ${response.statusText}`);
