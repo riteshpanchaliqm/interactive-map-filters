@@ -337,12 +337,13 @@ export function MapView({ selectedFilters, analysisResult }: MapViewProps) {
           'interpolate',
           ['linear'],
           ['get', 'percentage'],
-          0, '#e1f5fe',
-          5, '#81d4fa',
-          10, '#4fc3f7',
-          15, '#29b6f6',
-          20, '#03a9f4',
-          25, '#0288d1'
+          0, '#e3f2fd',  // Light blue
+          5, '#90caf9',  // Blue
+          10, '#64b5f6', // Medium blue
+          15, '#42a5f5', // Darker blue
+          20, '#4caf50', // Green
+          25, '#ff9800', // Orange
+          30, '#ff5722'  // Dark orange
         ],
         'fill-opacity': 0.7
       }
@@ -425,12 +426,13 @@ export function MapView({ selectedFilters, analysisResult }: MapViewProps) {
           'interpolate',
           ['linear'],
           ['get', 'percentage'],
-          0, '#e1f5fe',
-          5, '#81d4fa',
-          10, '#4fc3f7',
-          15, '#29b6f6',
-          20, '#03a9f4',
-          25, '#0288d1'
+          0, '#e3f2fd',  // Light blue
+          5, '#90caf9',  // Blue
+          10, '#64b5f6', // Medium blue
+          15, '#42a5f5', // Darker blue
+          20, '#4caf50', // Green
+          25, '#ff9800', // Orange
+          30, '#ff5722'  // Dark orange
         ],
         'fill-opacity': 0.7
       }
@@ -516,11 +518,11 @@ export function MapView({ selectedFilters, analysisResult }: MapViewProps) {
   const getRegionColor = (audienceSize: string) => {
     switch (audienceSize) {
       case 'Large':
-        return 'bg-blue-600';
+        return 'bg-orange-500';  // Orange for high values
       case 'Moderate':
-        return 'bg-blue-400';
+        return 'bg-green-500';    // Green for medium values
       default:
-        return 'bg-blue-200';
+        return 'bg-blue-400';    // Blue for low values
     }
   };
 
@@ -593,20 +595,28 @@ export function MapView({ selectedFilters, analysisResult }: MapViewProps) {
               <h4 className="font-medium mb-3">Voter Segment Heatmap</h4>
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-blue-600 rounded"></div>
-                  <span className="text-sm">High (20%+)</span>
+                  <div className="w-4 h-4 rounded" style={{backgroundColor: '#ff5722'}}></div>
+                  <span className="text-sm">Very High (25%+)</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-blue-400 rounded"></div>
-                  <span className="text-sm">Medium (10-20%)</span>
+                  <div className="w-4 h-4 rounded" style={{backgroundColor: '#ff9800'}}></div>
+                  <span className="text-sm">High (20-25%)</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-blue-200 rounded"></div>
-                  <span className="text-sm">Low (5-10%)</span>
+                  <div className="w-4 h-4 rounded" style={{backgroundColor: '#4caf50'}}></div>
+                  <span className="text-sm">Medium (15-20%)</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-gray-200 rounded"></div>
-                  <span className="text-sm">No Data (0-5%)</span>
+                  <div className="w-4 h-4 rounded" style={{backgroundColor: '#42a5f5'}}></div>
+                  <span className="text-sm">Low (10-15%)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded" style={{backgroundColor: '#64b5f6'}}></div>
+                  <span className="text-sm">Very Low (5-10%)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded" style={{backgroundColor: '#e3f2fd'}}></div>
+                  <span className="text-sm">Minimal (0-5%)</span>
                 </div>
               </div>
               <div className="mt-3 pt-3 border-t border-border">
